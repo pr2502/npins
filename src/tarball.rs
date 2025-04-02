@@ -28,6 +28,10 @@ pub struct LockedTarball {
     /// flakeref here
     #[serde(skip_serializing_if = "Option::is_none")]
     pub locked_url: Option<Url>,
+
+    /// Revision from the Lockable Tarball Protocol if it was present
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub revision: Option<String>,
 }
 
 impl diff::Diff for LockedTarball {
@@ -66,12 +70,20 @@ impl Updatable for TarballPin {
                     .strip_prefix("<")
             })
             .collect::<Vec<_>>();
+        let mut revision = None;
         let locked_url = if let [flakeref] = flakerefs[..] {
-            Some(
-                flakeref
-                    .parse::<Url>()
-                    .context("immutable link contained an invalid URL")?,
-            )
+            let flakeref_url = flakeref
+                .parse::<Url>()
+                .context("immutable link contained an invalid URL")?;
+            for (name, value) in flakeref_url.query_pairs() {
+                match name.as_ref() {
+                    "rev" => {
+                        revision = Some(value.into_owned());
+                    },
+                    _ => {},
+                }
+            }
+            Some(flakeref_url)
         } else {
             if matches!(old, Some(old) if old.locked_url.is_some()) {
                 log::warn!(
@@ -86,7 +98,10 @@ impl Updatable for TarballPin {
                 None
             }
         };
-        Ok(LockedTarball { locked_url })
+        Ok(LockedTarball {
+            locked_url,
+            revision,
+        })
     }
 
     async fn fetch(&self, version: &LockedTarball) -> Result<GenericHash> {
