@@ -32,6 +32,11 @@ pub struct LockedTarball {
     /// Revision from the Lockable Tarball Protocol if it was present
     #[serde(skip_serializing_if = "Option::is_none")]
     pub revision: Option<String>,
+
+    // TODO placeholder, always gets initialized to None but lets the parameter
+    // stay if it was present in `sources.json`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub revision_date: Option<String>,
 }
 
 impl diff::Diff for LockedTarball {
@@ -101,6 +106,7 @@ impl Updatable for TarballPin {
         Ok(LockedTarball {
             locked_url,
             revision,
+            revision_date: None,
         })
     }
 

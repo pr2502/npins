@@ -26,6 +26,11 @@ fn get_github_api_url() -> String {
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct GitRevision {
     revision: String,
+
+    // TODO placeholder, always gets initialized to None but lets the parameter
+    // stay if it was present in `sources.json`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    revision_date: Option<String>,
 }
 
 impl GitRevision {
@@ -33,7 +38,10 @@ impl GitRevision {
         if !revision.chars().all(|c| c.is_digit(16)) || revision.len() != 40 {
             anyhow::bail!("'{revision}' is not a valid git revision (sha1 hash)");
         }
-        Ok(Self { revision })
+        Ok(Self {
+            revision,
+            revision_date: None,
+        })
     }
 }
 
@@ -311,14 +319,23 @@ impl Updatable for GitPin {
     type Version = GitRevision;
     type Hashes = OptionalUrlHashes;
 
-    async fn update(&self, _old: Option<&GitRevision>) -> Result<GitRevision> {
+    async fn update(&self, old: Option<&GitRevision>) -> Result<GitRevision> {
         let repo_url = self.repository.git_url()?;
         let latest = fetch_branch_head(&repo_url, &self.branch)
             .await
             .context("Couldn't fetch the latest commit")?
             .revision;
 
-        Ok(GitRevision { revision: latest })
+        if let Some(old) = old {
+            if old.revision == latest {
+                return Ok(old.clone()); // unchanged
+            }
+        }
+
+        Ok(GitRevision {
+            revision: latest,
+            revision_date: None,
+        })
     }
 
     async fn fetch(&self, version: &GitRevision) -> Result<OptionalUrlHashes> {
@@ -865,6 +882,7 @@ mod test {
             version,
             GitRevision {
                 revision: "1edb0a9cebe046cc915a218c57dbf7f40739aeee".into(),
+                revision_date: None,
             }
         );
         assert_eq!(
@@ -921,6 +939,7 @@ mod test {
             version,
             GitRevision {
                 revision: "1edb0a9cebe046cc915a218c57dbf7f40739aeee".into(),
+                revision_date: None,
             }
         );
         assert_eq!(
@@ -1017,6 +1036,7 @@ mod test {
             version,
             GitRevision {
                 revision: "4bbdb2f5564b9b42bcaf0e1eec28325300f31c72".into(),
+                revision_date: None,
             }
         );
         assert_eq!(
@@ -1080,6 +1100,7 @@ mod test {
             version,
             git::GitRevision {
                 revision: "e7145078163692697b843915a665d4f41139a65c".into(),
+                revision_date: None,
             }
         );
         assert_eq!(
@@ -1175,6 +1196,7 @@ mod test {
             version,
             git::GitRevision {
                 revision: "bca2071b6923d45d9aabac27b3ea1e40f5fa3006".into(),
+                revision_date: None,
             }
         );
         assert_eq!(
